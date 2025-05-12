@@ -125,6 +125,52 @@ chmod +x run-tests.sh
 ./run-tests.sh @regression
 ```
 
+## GitHub Actions Integration
+
+This project is configured to run tests automatically in the cloud using GitHub Actions. The workflow runs tests on Android emulators hosted on GitHub's macOS runners.
+
+### How the Integration Works
+
+1. **Automated Runs**: Tests automatically run on:
+   - Every push to master/main branch
+   - Every pull request to master/main branch
+   - Manual triggers from GitHub UI
+
+2. **Test Environment**:
+   - Tests run on a macOS GitHub-hosted runner
+   - Uses Android emulator with API level 30 (Android 11)
+   - Appium server is automatically installed and started
+   - The app is installed on the emulator
+
+3. **Configuration**:
+   - Uses dedicated configuration properties for CI environment
+   - No local Appium server needed for cloud runs
+
+### Manually Triggering Tests in GitHub
+
+To manually run tests in GitHub Actions:
+
+1. Go to your GitHub repository
+2. Click on the "Actions" tab
+3. Select "Appium Tests" from the workflows list
+4. Click the "Run workflow" button
+5. Select the branch to run tests on
+6. Click "Run workflow"
+
+### Viewing Test Results in GitHub Actions
+
+After tests complete in GitHub Actions:
+
+1. Go to the Actions tab in your GitHub repository
+2. Click on the completed workflow run
+3. Scroll down to the "Artifacts" section
+4. Download the "test-results" artifact to view reports
+
+### Configuration Files
+
+- Workflow definition: `.github/workflows/appium-tests.yml`
+- CI configuration: `src/test/resources/config/github-actions-config.properties`
+
 ## Viewing Reports
 
 After test execution, reports are generated in:
@@ -142,6 +188,7 @@ The report files can be opened in any web browser.
 The framework can be configured using:
 
 - `src/test/resources/config/config.properties`: Basic configuration for Appium and test execution
+- `src/test/resources/config/github-actions-config.properties`: Configuration for GitHub Actions CI environment
 - `src/test/resources/extent-config/spark-config.xml`: Reporting configuration
 
 ## Test Features
