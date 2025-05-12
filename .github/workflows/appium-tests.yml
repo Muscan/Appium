@@ -77,21 +77,3 @@ jobs:
         run: |
           ls -la target || echo "Target directory not found"
           find target -name "*.html" || echo "No HTML reports found"
-
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v2
-        with:
-          name: test-results
-          path: |
-            target/cucumber-reports/
-            appium.log
-
-      - name: Upload logs on failure
-        if: failure()
-        uses: actions/upload-artifact@v2
-        with:
-          name: debug-logs
-          path: |
-            appium.log
-            **/*.log
