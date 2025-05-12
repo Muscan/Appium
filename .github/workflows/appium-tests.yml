@@ -10,113 +10,98 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    container:
+      image: budtmo/docker-android:emulator_11.0
+      options: --privileged --shm-size 8G
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Set up Java 11
+      - name: Set up Java for Maven
         uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
           java-version: '11'
           cache: 'maven'
 
-      - name: Cache Android SDK
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.android/avd/*
-            ~/.android/adb*
-            ~/android-sdk
-          key: android-sdk-${{ runner.os }}
+      - name: Check environment
+        run: |
+          java -version
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          ls -la $ANDROID_HOME || echo "ANDROID_HOME not found"
+          adb devices || echo "adb not available"
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v2
-
-      - name: Install Appium
+      - name: Install and configure Appium
         run: |
           npm install -g appium@2.0.0
           appium driver install uiautomator2@2.12.1
-
-      - name: Start Appium Server
-        run: |
           appium --log appium.log &
           echo "Waiting for Appium to start..."
-          sleep 5
+          sleep 10
 
-      - name: Simplify Maven builds for testing
+      - name: Copy APK if exists
         run: |
-          # Create a test-only profile to skip Lombok processing if needed
-          echo "
-          <settings>
-            <profiles>
-              <profile>
-                <id>test-only</id>
-                <properties>
-                  <maven.test.skip>false</maven.test.skip>
-                  <maven.main.skip>true</maven.main.skip>
-                  <maven.compiler.skip>true</maven.compiler.skip>
-                </properties>
-              </profile>
-            </profiles>
-            <activeProfiles>
-              <activeProfile>test-only</activeProfile>
-            </activeProfiles>
-          </settings>
-          " > ~/.m2/settings.xml
+          mkdir -p src/test/resources/apps
+          find . -name "*.apk" -exec cp {} src/test/resources/apps/ \; || echo "No APK files found"
 
-      - name: Manual Emulator Setup
+      - name: Setup configuration
         run: |
-          # Accept Android SDK licenses
-          yes | sdkmanager --licenses
-          
-          # Install required packages
-          sdkmanager "platform-tools" "emulator" "system-images;android-29;google_apis;x86_64"
-          
-          # Create AVD
-          echo "no" | avdmanager create avd --force --name test --package "system-images;android-29;google_apis;x86_64" --tag "google_apis" --abi "x86_64"
-          
-          # Start emulator in background
-          $ANDROID_HOME/emulator/emulator -avd test -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect &
-          
-          # Wait for emulator to start
-          echo "Waiting for emulator to start..."
-          $ANDROID_HOME/platform-tools/adb wait-for-device
-          
-          # Wait for boot to complete with timeout
-          TIMEOUT=300
-          RETRY_INTERVAL=10
-          ELAPSED=0
-          
-          while [ "$ELAPSED" -lt "$TIMEOUT" ]; do
-            BOOT_COMPLETED=$($ANDROID_HOME/platform-tools/adb shell getprop sys.boot_completed 2>/dev/null)
-            if [ "$BOOT_COMPLETED" = "1" ]; then
-              echo "Emulator booted successfully!"
-              break
-            fi
-            echo "Waiting for emulator to complete boot... ($ELAPSED/$TIMEOUT seconds)"
-            sleep $RETRY_INTERVAL
-            ELAPSED=$((ELAPSED + RETRY_INTERVAL))
-          done
-          
-          if [ "$ELAPSED" -ge "$TIMEOUT" ]; then
-            echo "Emulator boot timed out after $TIMEOUT seconds"
-            exit 1
-          fi
-          
-          # Show device
-          $ANDROID_HOME/platform-tools/adb devices
-          
-          # Install APK if exists
-          find . -name "*.apk" -exec $ANDROID_HOME/platform-tools/adb install -r {} \; || echo "No APK found or installation failed"
-          
-          # Set up configuration
           mkdir -p src/test/resources/config
           cp src/test/resources/config/github-actions-config.properties src/test/resources/config/config.properties || echo "Failed to copy config file"
+
+      - name: Update GitHub Actions config
+        run: |
+          cat > src/test/resources/config/config.properties << EOF
+          # Appium Server Configuration
+          appium.server.url=http://127.0.0.1:4723
           
-          # Run tests using existing resources (skipping compilation if needed)
-          MAVEN_OPTS="-Xmx2048m" mvn test -DskipCompilation
+          # Platform Settings
+          platform.name=Android
+          device.name=emulator-5554
+          automation.name=UiAutomator2
+          no.reset=false
+          autoGrantPermissions=true
+          
+          # App Settings
+          app.package=com.tui.qa.challenge
+          app.activity=com.tui.qa.challenge.MainActivity
+          
+          # Timeouts and Waits
+          default.wait.seconds=5
+          short.wait.seconds=2
+          implicit.wait.ms=1000
+          
+          # Performance Settings
+          ignore.unimportant.views=true
+          disable.window.animation=true
+          
+          # Additional capabilities
+          newCommandTimeout=300
+          adbExecTimeout=60000
+          EOF
+
+      - name: Check device connection & install app
+        run: |
+          # Wait for the emulator to be fully started in container
+          echo "Waiting for emulator to be ready..."
+          adb wait-for-device
+          
+          timeout 120 bash -c 'until adb shell getprop sys.boot_completed | grep -q "1"; do sleep 5; echo "Waiting for boot completion..."; done'
+          
+          echo "Device is ready"
+          adb devices
+          
+          # Install the APK
+          find src/test/resources/apps -name "*.apk" -exec adb install -r {} \; || echo "No APK files found or installation failed"
+
+      - name: Run tests
+        run: |
+          # Set Maven options to avoid compilation issues
+          export MAVEN_OPTS="-Xmx2g"
+          
+          # Skip compilation if possible, just run the tests
+          mvn -B test -Dmaven.main.skip=true -Dmaven.compiler.skip=true || mvn -B test
 
       - name: Debug on failure
         if: failure()
@@ -127,10 +112,7 @@ jobs:
           cat appium.log || echo "No appium.log file found"
           echo "----------------------------"
           echo "Emulator status:"
-          $ANDROID_HOME/platform-tools/adb devices || echo "No devices connected"
-          echo "----------------------------"
-          echo "Emulator logs:"
-          cat ~/.android/avd/test.avd/*.log || echo "No emulator logs found"
+          adb devices || echo "No devices connected"
           echo "----------------------------"
           echo "Logcat output:"
-          $ANDROID_HOME/platform-tools/adb logcat -d || echo "No logcat available"
+          adb logcat -d || echo "No logcat available"
