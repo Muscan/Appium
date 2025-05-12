@@ -1,0 +1,13 @@
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+<suite name="Cucumber Suite">
+    <test name="Login Tests">
+        <classes>
+            <class name="com.test.runners.LoginRunnerTest"/>
+        </classes>
+    </test>
+    <test name="Hotel Search Tests">
+        <classes>
+            <class name="com.test.runners.HotelSearchRunnerTest"/>
+        </classes>
+    </test>
+</suite>
