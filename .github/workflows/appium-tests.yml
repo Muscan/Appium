@@ -12,13 +12,15 @@ jobs:
     runs-on: macos-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
       - name: Set up JDK
         uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
           java-version: '11'
+          cache: 'maven'
 
       - name: Install Appium
         run: |
@@ -26,34 +28,70 @@ jobs:
           appium driver install uiautomator2
           appium --log appium.log &
 
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v2
+
+      - name: List available Android packages
+        run: |
+          sdkmanager --list | grep system-images
+
+      - name: Install Android images
+        run: |
+          echo "y" | sdkmanager "system-images;android-30;google_apis;x86_64"
+
       - name: Create and start emulator
         run: |
           echo "no" | avdmanager create avd --force --name test --package "system-images;android-30;google_apis;x86_64"
           emulator -avd test -no-window -no-audio -no-boot-anim &
-          adb wait-for-device shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
+          adb wait-for-device shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 3; done'
           adb shell settings put global window_animation_scale 0
           adb shell settings put global transition_animation_scale 0
           adb shell settings put global animator_duration_scale 0
           adb devices
 
+      - name: List project files
+        run: |
+          ls -la
+          ls -la src/test/resources || echo "resources directory not found"
+          find . -name "*.apk" || echo "No APK files found"
+
       - name: Install APK
         run: |
-          adb install ./resources/apps/TUIChallengeApp.apk
+          mkdir -p src/test/resources/apps
+          find . -name "*.apk" -exec adb install {} \; || echo "Failed to install APK"
           sleep 5
 
-      - name: Copy GitHub Actions config
+      - name: Setup configuration
         run: |
           mkdir -p src/test/resources/config
-          cp src/test/resources/config/github-actions-config.properties src/test/resources/config/config.properties
+          cp src/test/resources/config/github-actions-config.properties src/test/resources/config/config.properties || echo "Failed to copy config file"
+          cat src/test/resources/config/config.properties || echo "Cannot display config"
 
       - name: Run tests
-        run: mvn clean test
+        run: |
+          echo "Running Maven tests..."
+          mvn clean test
+
+      - name: Check test results directory
+        if: always()
+        run: |
+          ls -la target || echo "Target directory not found"
+          find target -name "*.html" || echo "No HTML reports found"
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v3.1.2
         with:
           name: test-results
           path: |
             target/cucumber-reports/
             appium.log
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v3.1.2
+        with:
+          name: debug-logs
+          path: |
+            appium.log
+            **/*.log

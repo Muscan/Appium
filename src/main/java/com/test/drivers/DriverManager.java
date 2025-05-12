@@ -40,18 +40,20 @@ public class DriverManager {
             caps.setCapability("appium:appPackage", ConfigManager.getProperty("app.package", "com.tui.qa.challenge"));
             caps.setCapability("appium:appActivity", ConfigManager.getProperty("app.activity", "com.tui.qa.challenge.MainActivity"));
 
-            // Some fireworks to improve the speed...
+            // Performance settings
             caps.setCapability("appium:ignoreUnimportantViews", ConfigManager.getBooleanProperty("ignore.unimportant.views", true));
             caps.setCapability("appium:disableWindowAnimation", ConfigManager.getBooleanProperty("disable.window.animation", true));
 
-            caps.setCapability("appium:newCommandTimeout", 180);
-            caps.setCapability("appium:adbExecTimeout", 60000);
-            caps.setCapability("appium:uiautomator2ServerLaunchTimeout", 60000);
-            caps.setCapability("appium:uiautomator2ServerInstallTimeout", 60000);
-            caps.setCapability("appium:androidInstallTimeout", 90000);
-            caps.setCapability("appium:noReset", false);
-            caps.setCapability("appium:autoGrantPermissions", true);
-            caps.setCapability("appium:skipUnlock", true);
+            // Read timeout values from config instead of hardcoding
+            caps.setCapability("appium:newCommandTimeout", ConfigManager.getIntProperty("newCommandTimeout", 180));
+            caps.setCapability("appium:adbExecTimeout", ConfigManager.getIntProperty("adbExecTimeout", 60000));
+            caps.setCapability("appium:uiautomator2ServerLaunchTimeout", ConfigManager.getIntProperty("uiautomator2ServerLaunchTimeout", 60000));
+            caps.setCapability("appium:uiautomator2ServerInstallTimeout", ConfigManager.getIntProperty("uiautomator2ServerInstallTimeout", 60000));
+            caps.setCapability("appium:androidInstallTimeout", ConfigManager.getIntProperty("androidInstallTimeout", 90000));
+
+            // Other capabilities
+            caps.setCapability("appium:autoGrantPermissions", ConfigManager.getBooleanProperty("autoGrantPermissions", true));
+            caps.setCapability("appium:skipUnlock", ConfigManager.getBooleanProperty("skipUnlock", true));
 
             // Connect to Appium
             URL url = new URL(ConfigManager.getProperty("appium.server.url", "http://127.0.0.1:4723"));
