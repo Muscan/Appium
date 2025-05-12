@@ -40,46 +40,43 @@ jobs:
           appium driver install uiautomator2
           appium --log appium.log &
 
-      - name: List available Android packages
-        run: |
-          sdkmanager --list | grep system-images
+      # Use a dedicated GitHub Action for emulator setup
+      - name: AVD cache
+        uses: actions/cache@v3
+        id: avd-cache
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-29
 
-      - name: Install Android images
-        run: |
-          echo "y" | sdkmanager "system-images;android-30;google_apis;x86_64"
+      - name: Create AVD and generate snapshot for caching
+        if: steps.avd-cache.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          force-avd-creation: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: echo "Generated AVD snapshot for caching."
 
-      - name: Create and start emulator
-        run: |
-          echo "no" | avdmanager create avd --force --name test --package "system-images;android-30;google_apis;x86_64"
-          emulator -avd test -no-window -no-audio -no-boot-anim &
-          adb wait-for-device shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 3; done'
-          adb shell settings put global window_animation_scale 0
-          adb shell settings put global transition_animation_scale 0
-          adb shell settings put global animator_duration_scale 0
-          adb devices
-
-      - name: List project files
-        run: |
-          ls -la
-          ls -la src/test/resources || echo "resources directory not found"
-          find . -name "*.apk" || echo "No APK files found"
-
-      - name: Install APK
-        run: |
-          mkdir -p src/test/resources/apps
-          find . -name "*.apk" -exec adb install {} \; || echo "Failed to install APK"
-          sleep 5
-
-      - name: Setup configuration
-        run: |
-          mkdir -p src/test/resources/config
-          cp src/test/resources/config/github-actions-config.properties src/test/resources/config/config.properties || echo "Failed to copy config file"
-          cat src/test/resources/config/config.properties || echo "Cannot display config"
-
-      - name: Run tests
-        run: |
-          echo "Running Maven tests..."
-          mvn clean test
+      - name: Run tests on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          force-avd-creation: false
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: |
+            adb devices
+            find . -name "*.apk" -exec adb install {} \; || echo "Failed to install APK"
+            
+            # Set up configuration
+            mkdir -p src/test/resources/config
+            cp src/test/resources/config/github-actions-config.properties src/test/resources/config/config.properties || echo "Failed to copy config file"
+            
+            # Run tests
+            mvn clean test
 
       - name: Check test results directory
         if: always()
