@@ -15,71 +15,69 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # Set up Java 17 first for Android SDK setup
-      - name: Set up Java 17 for Android SDK
+      # Setup Java 17 and make it the default Java version
+      - name: Set up Java 17
         uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      # Install Android SDK with Java 17
+      # Verify Java version
+      - name: Verify Java version
+        run: |
+          java -version
+          echo "JAVA_HOME=$JAVA_HOME"
+
       - name: Setup Android SDK
         uses: android-actions/setup-android@v2
 
-      # Now switch to Java 11 for your tests
-      - name: Set up Java 11 for Tests
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'temurin'
-          java-version: '11'
-          cache: 'maven'
-
-      - name: Install Appium
+      - name: Install and configure Appium
         run: |
-          npm install -g appium
+          npm install -g appium@next
           appium driver install uiautomator2
+
+      - name: Start Appium Server
+        run: |
           appium --log appium.log &
+          echo "Waiting for Appium to start..."
+          sleep 5
 
-      # Use a dedicated GitHub Action for emulator setup
-      - name: AVD cache
-        uses: actions/cache@v3
-        id: avd-cache
-        with:
-          path: |
-            ~/.android/avd/*
-            ~/.android/adb*
-          key: avd-29
-
-      - name: Create AVD and generate snapshot for caching
-        if: steps.avd-cache.outputs.cache-hit != 'true'
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 29
-          force-avd-creation: true
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          disable-animations: true
-          script: echo "Generated AVD snapshot for caching."
-
+      # Use the pre-built emulator in GitHub Actions
       - name: Run tests on emulator
-        uses: reactivecircus/android-emulator-runner@v2
+        uses: ReactiveCircus/android-emulator-runner@v2
         with:
           api-level: 29
-          force-avd-creation: false
-          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          disable-animations: true
+          arch: x86_64
+          profile: pixel
           script: |
+            echo "Emulator is running"
             adb devices
+            
+            # List files to ensure APK is found
+            find . -name "*.apk" || echo "No APK files found"
+            
+            # Install APK
             find . -name "*.apk" -exec adb install {} \; || echo "Failed to install APK"
             
             # Set up configuration
             mkdir -p src/test/resources/config
             cp src/test/resources/config/github-actions-config.properties src/test/resources/config/config.properties || echo "Failed to copy config file"
             
-            # Run tests
+            # Show Java version inside emulator script
+            java -version
+            
+            # Run Maven tests - specify max heap size to avoid memory issues
+            export MAVEN_OPTS="-Xmx2048m"
             mvn clean test
 
-      - name: Check test results directory
-        if: always()
+      - name: Debug on failure
+        if: failure()
         run: |
-          ls -la target || echo "Target directory not found"
-          find target -name "*.html" || echo "No HTML reports found"
+          echo "Debug information on failure:"
+          java -version
+          echo "JAVA_HOME=$JAVA_HOME"
+          ls -la
+          echo "Appium log:"
+          cat appium.log || echo "No appium.log file found"
+          echo "Maven logs:"
+          find ~/.m2 -name "*.log" -exec cat {} \; || echo "No Maven logs found"
