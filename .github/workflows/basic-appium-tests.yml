@@ -1,4 +1,4 @@
-name: Basic Appium Tests
+name: Appium Test Workflow
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
   workflow_dispatch:  # Allows manual triggering
 
 jobs:
-  test:
+  build-and-test:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -21,60 +21,89 @@ jobs:
           java-version: '11'
           cache: 'maven'
 
-      # Instead of running full emulator tests in GitHub Actions,
-      # let's focus on compiling and running simple unit tests
-      - name: Compile and run basic tests
+      # Install Node.js and npm
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16'
+
+      # Install Appium and drivers
+      - name: Install Appium
         run: |
-          # Copy configuration
+          npm install -g appium@next
+          appium driver install uiautomator2
+          appium --version
+
+      # Create config files if they don't exist
+      - name: Setup project configuration
+        run: |
           mkdir -p src/test/resources/config
+          
+          # Create a default config file if it doesn't exist
+          if [ ! -f src/test/resources/config/github-actions-config.properties ]; then
+            echo "# Default GitHub Actions configuration" > src/test/resources/config/github-actions-config.properties
+            echo "appium.server.url=http://localhost:4723" >> src/test/resources/config/github-actions-config.properties
+            echo "android.platform.version=11.0" >> src/test/resources/config/github-actions-config.properties
+            echo "android.device.name=Android Emulator" >> src/test/resources/config/github-actions-config.properties
+            echo "test.mode=local" >> src/test/resources/config/github-actions-config.properties
+          fi
+          
+          # Copy config for CI environment
           cp src/test/resources/config/github-actions-config.properties src/test/resources/config/config.properties || echo "Failed to copy config file"
-          
-          # Just run the Maven compile phase for now
-          mvn compile
 
-      # Add information about local and cloud testing options
-      - name: Create testing instructions
+      # Compile code (without running tests)
+      - name: Compile code
+        run: mvn compile
+
+      # Run basic unit tests (if any)
+      - name: Run unit tests
+        run: mvn test -DskipITs=true
+        continue-on-error: true
+
+      # Create testing documentation
+      - name: Create testing documentation
         run: |
-          echo "# How to run these tests" > TESTING_GUIDE.md
-          echo "" >> TESTING_GUIDE.md
+          echo "# Appium Test Framework Documentation" > TEST_DOCS.md
+          echo "" >> TEST_DOCS.md
+          echo "## Requirements" >> TEST_DOCS.md
+          echo "- JDK 11+" >> TEST_DOCS.md
+          echo "- Maven" >> TEST_DOCS.md
+          echo "- Node.js and npm" >> TEST_DOCS.md
+          echo "- Appium Server (2.0+)" >> TEST_DOCS.md
+          echo "- Android SDK" >> TEST_DOCS.md
+          echo "" >> TEST_DOCS.md
           
-          echo "## Local Testing" >> TESTING_GUIDE.md
-          echo "" >> TESTING_GUIDE.md
-          echo "### Setup" >> TESTING_GUIDE.md
-          echo "1. Start Android emulator" >> TESTING_GUIDE.md
-          echo "2. Start Appium server: \`appium\`" >> TESTING_GUIDE.md
-          echo "3. Run tests: \`mvn clean test\`" >> TESTING_GUIDE.md
-          echo "" >> TESTING_GUIDE.md
-          echo "### Common issues" >> TESTING_GUIDE.md
-          echo "- Ensure appium is installed: \`npm install -g appium\`" >> TESTING_GUIDE.md
-          echo "- Install uiautomator2 driver: \`appium driver install uiautomator2\`" >> TESTING_GUIDE.md
-          echo "- Check emulator is running: \`adb devices\`" >> TESTING_GUIDE.md
-          echo "" >> TESTING_GUIDE.md
+          echo "## Local Setup" >> TEST_DOCS.md
+          echo "1. Install JDK and set JAVA_HOME" >> TEST_DOCS.md
+          echo "2. Install Maven" >> TEST_DOCS.md
+          echo "3. Install Node.js and npm" >> TEST_DOCS.md
+          echo "4. Install Appium: \`npm install -g appium\`" >> TEST_DOCS.md
+          echo "5. Install Appium drivers: \`appium driver install uiautomator2\`" >> TEST_DOCS.md
+          echo "6. Set up Android SDK and create an emulator" >> TEST_DOCS.md
+          echo "" >> TEST_DOCS.md
           
-          echo "## Cloud Testing with Sauce Labs" >> TESTING_GUIDE.md
-          echo "" >> TESTING_GUIDE.md
-          echo "This project supports running tests on Sauce Labs cloud." >> TESTING_GUIDE.md
-          echo "" >> TESTING_GUIDE.md
-          echo "### Running via GitHub Actions:" >> TESTING_GUIDE.md
-          echo "1. Go to GitHub Actions tab" >> TESTING_GUIDE.md
-          echo "2. Select \"Basic Sauce Labs Demo\" workflow" >> TESTING_GUIDE.md
-          echo "3. Click \"Run workflow\"" >> TESTING_GUIDE.md
-          echo "" >> TESTING_GUIDE.md
-          echo "### Running locally with Sauce Labs:" >> TESTING_GUIDE.md
-          echo "```bash" >> TESTING_GUIDE.md
-          echo "export SAUCE_USERNAME=your_username" >> TESTING_GUIDE.md
-          echo "export SAUCE_ACCESS_KEY=your_access_key" >> TESTING_GUIDE.md
-          echo "cp src/test/resources/config/sauce-config.properties src/test/resources/config/config.properties" >> TESTING_GUIDE.md
-          echo "mvn test -Dtest=LoginRunnerTest" >> TESTING_GUIDE.md
-          echo "```" >> TESTING_GUIDE.md
-          echo "" >> TESTING_GUIDE.md
-          echo "For more details, see [SAUCE_LABS_SETUP.md](SAUCE_LABS_SETUP.md)" >> TESTING_GUIDE.md
+          echo "## Running Tests" >> TEST_DOCS.md
+          echo "### Local" >> TEST_DOCS.md
+          echo "1. Start Appium server: \`appium\`" >> TEST_DOCS.md
+          echo "2. Start Android emulator" >> TEST_DOCS.md
+          echo "3. Run tests: \`mvn clean test\`" >> TEST_DOCS.md
+          echo "" >> TEST_DOCS.md
           
-          cat TESTING_GUIDE.md
+          echo "### Cloud Testing" >> TEST_DOCS.md
+          echo "For cloud testing options (BrowserStack, Sauce Labs, etc.):" >> TEST_DOCS.md
+          echo "1. Update the configuration in \`src/test/resources/config/config.properties\`" >> TEST_DOCS.md
+          echo "2. Set environment variables for your cloud provider credentials" >> TEST_DOCS.md
+          echo "3. Run tests with cloud profile: \`mvn test -Pcloud\`" >> TEST_DOCS.md
+          echo "" >> TEST_DOCS.md
+          
+          echo "## Troubleshooting" >> TEST_DOCS.md
+          echo "- Check \`adb devices\` to ensure your emulator is properly connected" >> TEST_DOCS.md
+          echo "- Verify Appium server is running with \`appium --log-level debug\`" >> TEST_DOCS.md
+          echo "- For ARM64 devices, ensure you have the appropriate dependencies installed" >> TEST_DOCS.md
+          echo "- Check that your test APK is compatible with the device/emulator you're using" >> TEST_DOCS.md
 
-      # Only upload artifacts if compilation succeeded
+      # Upload compiled code
       - name: Upload compiled code
-        if: success()
         uses: actions/upload-artifact@v3
         with:
           name: compiled-code
@@ -82,9 +111,9 @@ jobs:
             target/classes/
             target/test-classes/
 
-      # Testing guides documentation
-      - name: Upload testing guides
+      # Upload documentation
+      - name: Upload documentation
         uses: actions/upload-artifact@v3
         with:
-          name: testing-guides
-          path: TESTING_GUIDE.md
+          name: test-documentation
+          path: TEST_DOCS.md
