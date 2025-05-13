@@ -1,9 +1,10 @@
-name: Sauce Labs Appium Tests
+name: Basic Sauce Labs Demo
 
+# Run manually or on schedule rather than on every push to avoid consuming minutes
 on:
-  push:
-    branches: [ master, main ]
   workflow_dispatch:  # Allows manual triggering
+  schedule:
+    - cron: '0 0 * * 1'  # Run weekly on Mondays at midnight
 
 jobs:
   test:
@@ -20,61 +21,52 @@ jobs:
           java-version: '11'
           cache: 'maven'
 
-      - name: Setup configuration for Sauce Labs
+      # Run only one test to stay within free tier limits
+      - name: Run single test on Sauce Labs
         env:
           SAUCE_USERNAME: ${{ secrets.SAUCE_USERNAME }}
           SAUCE_ACCESS_KEY: ${{ secrets.SAUCE_ACCESS_KEY }}
         run: |
-          # Create directory if it doesn't exist
+          # Create config directory if it doesn't exist
           mkdir -p src/test/resources/config
           
-          # Copy Sauce Labs configuration template if it exists, otherwise create it
-          if [ -f src/test/resources/config/sauce-config.properties ]; then
-            cp src/test/resources/config/sauce-config.properties src/test/resources/config/config.properties
-          else
-            # Create the config file directly if template doesn't exist
-            cat > src/test/resources/config/config.properties << EOF
+          # Create the sauce-config.properties file with credentials
+          cat > src/test/resources/config/sauce-config.properties << EOF
           # Sauce Labs Configuration
-          appium.server.url=https://ondemand.us-west-1.saucelabs.com/wd/hub
-          sauce.username=$SAUCE_USERNAME
-          sauce.accesskey=$SAUCE_ACCESS_KEY
+          appium.server.url=https://ondemand.eu-central-1.saucelabs.com/wd/hub
+          sauce.username=${SAUCE_USERNAME}
+          sauce.accesskey=${SAUCE_ACCESS_KEY}
           
           # Platform Settings
           platform.name=Android
-          device.name=Google Pixel 6
-          platform.version=12.0
+          device.name=Android GoogleAPI Emulator
+          platform.version=11.0
           automation.name=UiAutomator2
-          no.reset=true
-          autoGrantPermissions=true
           
           # App Settings
-          app.package=com.tui.qa.challenge
-          app.activity=com.tui.qa.challenge.MainActivity
+          app.sauce.id=sauce-storage:YourApp.apk
           
           # Test Configuration
-          test.name=TUI Challenge App Test
-          test.build=Appium-Tests-CI-$GITHUB_RUN_NUMBER
+          test.name=Demo Test Run
+          test.build=Build-${GITHUB_RUN_NUMBER}
           
-          # Timeouts and Waits
-          implicit.wait.ms=1000
+          # Timeouts and Stability
+          implicit.wait.ms=5000
+          newCommandTimeout=180
+          autoGrantPermissions=true
           EOF
-          fi
           
-          # Replace placeholders with actual secrets
-          sed -i "s/YOUR_SAUCE_USERNAME/$SAUCE_USERNAME/g" src/test/resources/config/config.properties
-          sed -i "s/YOUR_SAUCE_ACCESS_KEY/$SAUCE_ACCESS_KEY/g" src/test/resources/config/config.properties
+          # Copy to config.properties for the test run
+          cp src/test/resources/config/sauce-config.properties src/test/resources/config/config.properties
           
-          # Upload app to Sauce Labs storage if needed
-          # This step is optional if you've already uploaded your app or set the app.sauce.id in your config
-          # SAUCE_APP_ID=$(curl -u "$SAUCE_USERNAME:$SAUCE_ACCESS_KEY" -X POST -H "Content-Type: application/octet-stream" \
-          #                   "https://saucelabs.com/rest/v1/storage/$SAUCE_USERNAME/your-app.apk?overwrite=true" \
-          #                   --data-binary @"./path/to/your/app.apk")
-          # 
-          # if [ ! -z "$SAUCE_APP_ID" ]; then
-          #   echo "app.sauce.id=sauce-storage:your-app.apk" >> src/test/resources/config/config.properties
-          # fi
+          # Run a single test class to stay within free tier limits
+          # Replace LoginTest with your actual test class name
+          mvn test -Dtest=LoginRunnerTest
 
-      - name: Run tests on Sauce Labs
+      - name: Debug info on failure
+        if: failure()
         run: |
-          # Run your tests
-          mvn clean test
+          echo "Debug information:"
+          echo "-----------------"
+          echo "Sauce Labs dashboard: https://app.saucelabs.com/dashboard/tests/vdc"
+          echo "Check your email associated with Sauce Labs for error notifications"
