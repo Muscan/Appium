@@ -19,6 +19,7 @@ public class HomePage extends BasePage {
         try {
             driver.navigate().back();
             logAction("Navigated back");
+            waitFor(500); // Small wait after navigation
         } catch (Exception e) {
             logError("Failed to navigate back", e);
         }
@@ -35,6 +36,18 @@ public class HomePage extends BasePage {
                 isElementPresent(Navigation.ALL_TAB_BY_ID, 2) ||
                 isElementPresent(Navigation.HOTELS_TAB_BY_ID, 2) ||
                 isElementPresent(Navigation.HOLIDAYS_TAB_BY_ID, 2);
+
+        // Additional check to ensure we're actually on results screen and not just seeing tabs
+        if (isDisplayed) {
+            // If we see tabs but no content, we might not be fully loaded
+            boolean hasContent = isElementPresent(Listings.CONTENT_CARD, 2) ||
+                    getHotelCardCount() > 0;
+
+            if (!hasContent) {
+                logAction("Tabs visible but no content found - might not be on results page");
+                return false;
+            }
+        }
 
         return isDisplayed;
     }
@@ -98,9 +111,7 @@ public class HomePage extends BasePage {
         clickTab("holidays");
     }
 
-    /**
-     * Gets the count of hotel cards displayed
-     */
+
     public int getHotelCardCount() {
         try {
             List<WebElement> cards = driver.findElements(Listings.HOTEL_CARD_BY_ID);
@@ -116,9 +127,6 @@ public class HomePage extends BasePage {
         }
     }
 
-    /**
-     * Unified method to get hotel information by type
-     */
     public String getFirstHotelInfo(String infoType) {
         By selector;
         By fallbackSelector;

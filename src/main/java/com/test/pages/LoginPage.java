@@ -264,7 +264,7 @@ public class LoginPage extends BasePage {
                 }
 
                 return null;
-            }, "login result", Duration.ofSeconds(8));
+            }, "login result", Duration.ofSeconds(5)); // Reduced from 8 seconds
         } catch (Exception e) {
             return isUserLoggedIn();
         }

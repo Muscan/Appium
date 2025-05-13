@@ -23,8 +23,8 @@ public class BasePage {
     public BasePage() {
         this.driver = DriverManager.getDriver();
 
-        int defaultWaitSeconds = ConfigManager.getIntProperty("default.wait.seconds", 5);
-        int shortWaitSeconds = ConfigManager.getIntProperty("short.wait.seconds", 2);
+        int defaultWaitSeconds = ConfigManager.getIntProperty("default.wait.seconds", 3); // Reduced from 5
+        int shortWaitSeconds = ConfigManager.getIntProperty("short.wait.seconds", 1);  // Reduced from 2
 
         this.wait = new WebDriverWait(driver, Duration.ofSeconds(defaultWaitSeconds));
         this.shortWait = new WebDriverWait(driver, Duration.ofSeconds(shortWaitSeconds));
@@ -33,7 +33,7 @@ public class BasePage {
     protected <T> T waitUntil(Function<AppiumDriver, T> condition, String description, Duration timeout) {
         return new FluentWait<>(driver)
             .withTimeout(timeout)
-            .pollingEvery(Duration.ofMillis(250))
+            .pollingEvery(Duration.ofMillis(100)) // Reduced from 250ms
             .ignoring(NoSuchElementException.class)
             .ignoring(StaleElementReferenceException.class)
             .withMessage("Waiting for: " + description)

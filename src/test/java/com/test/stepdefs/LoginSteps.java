@@ -7,7 +7,6 @@ import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
 import org.testng.Assert;
 
-
 public class LoginSteps {
     private LoginPage loginPage;
     private HomePage homePage;
@@ -17,11 +16,10 @@ public class LoginSteps {
         homePage = new HomePage();
     }
 
+
     @Given("the app is launched")
     public void theAppIsLaunched() {
         System.out.println("App is launched and ready for testing");
-
-        // Check if we're on the login screen
         boolean loginVisible = loginPage.isUsernameFieldDisplayed();
         System.out.println("Username field visible: " + loginVisible);
 
@@ -49,6 +47,7 @@ public class LoginSteps {
 
     @Then("I should be logged in successfully")
     public void iShouldBeLoggedInSuccessfully() {
+        // Removed verbose page source logging
         boolean isLoggedIn = loginPage.isUserLoggedIn();
         System.out.println("LOGIN STATUS: " + (isLoggedIn ? "SUCCESSFUL" : "FAILED"));
 
